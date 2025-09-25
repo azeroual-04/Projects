@@ -16,64 +16,87 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus } from "lucide-react"
-import { useAdminStore } from "@/lib/store/admin-store"
 import { toast } from "@/hooks/use-toast"
+import { createClient } from "@/lib/supabase/client"
 
-export function AddBeneficiaryDialog() {
+interface AddBeneficiaryDialogProps {
+  onSuccess?: () => void
+}
+
+export function AddBeneficiaryDialog({ onSuccess }: AddBeneficiaryDialogProps) {
   const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
-    familySize: "",
-    program: "",
-    status: "نشط" as const,
-    phone: "",
-    address: "",
-    notes: "",
+    age: "",
+    location: "",
+    family_size: "",
+    monthly_income: "",
+    needs: "",
+    status: "pending" as const,
   })
 
-  const addBeneficiary = useAdminStore((state) => state.addBeneficiary)
+  const supabase = createClient()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
 
-    if (!formData.name || !formData.familySize || !formData.program || !formData.phone) {
+    if (!formData.name || !formData.age || !formData.location || !formData.family_size || !formData.needs) {
       toast({
         title: "خطأ في البيانات",
         description: "يرجى ملء جميع الحقول المطلوبة",
         variant: "destructive",
       })
+      setLoading(false)
       return
     }
 
-    addBeneficiary({
-      name: formData.name,
-      familySize: Number.parseInt(formData.familySize),
-      program: formData.program,
-      status: formData.status,
-      joinDate: new Date().toISOString().split("T")[0],
-      phone: formData.phone,
-      address: formData.address,
-      notes: formData.notes,
-    })
+    try {
+      const { error } = await supabase.from("beneficiaries").insert({
+        name: formData.name,
+        age: Number.parseInt(formData.age),
+        location: formData.location,
+        family_size: Number.parseInt(formData.family_size),
+        monthly_income: formData.monthly_income ? Number.parseFloat(formData.monthly_income) : null,
+        needs: formData.needs,
+        status: formData.status,
+      })
 
-    toast({
-      title: "تم إضافة المستفيد",
-      description: `تم إضافة ${formData.name} بنجاح`,
-    })
+      if (error) throw error
 
-    // Reset form
-    setFormData({
-      name: "",
-      familySize: "",
-      program: "",
-      status: "نشط",
-      phone: "",
-      address: "",
-      notes: "",
-    })
-    setOpen(false)
+      toast({
+        title: "تم إضافة المستفيد",
+        description: `تم إضافة ${formData.name} بنجاح`,
+      })
+
+      // Reset form
+      setFormData({
+        name: "",
+        age: "",
+        location: "",
+        family_size: "",
+        monthly_income: "",
+        needs: "",
+        status: "pending",
+      })
+      setOpen(false)
+
+      // Call success callback to refresh the list
+      if (onSuccess) {
+        onSuccess()
+      }
+    } catch (error) {
+      console.error("Error adding beneficiary:", error)
+      toast({
+        title: "خطأ في الإضافة",
+        description: "حدث خطأ أثناء إضافة المستفيد",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -101,85 +124,96 @@ export function AddBeneficiaryDialog() {
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="col-span-3"
                 required
+                disabled={loading}
               />
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="familySize" className="text-right">
+              <Label htmlFor="age" className="text-right">
+                العمر *
+              </Label>
+              <Input
+                id="age"
+                type="number"
+                min="1"
+                max="120"
+                value={formData.age}
+                onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                className="col-span-3"
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="location" className="text-right">
+                الموقع *
+              </Label>
+              <Input
+                id="location"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                className="col-span-3"
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="family_size" className="text-right">
                 حجم الأسرة *
               </Label>
               <Input
-                id="familySize"
+                id="family_size"
                 type="number"
                 min="1"
-                value={formData.familySize}
-                onChange={(e) => setFormData({ ...formData, familySize: e.target.value })}
+                value={formData.family_size}
+                onChange={(e) => setFormData({ ...formData, family_size: e.target.value })}
                 className="col-span-3"
                 required
+                disabled={loading}
               />
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="program" className="text-right">
-                البرنامج *
-              </Label>
-              <Select value={formData.program} onValueChange={(value) => setFormData({ ...formData, program: value })}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="اختر البرنامج" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="الإغاثة الغذائية">الإغاثة الغذائية</SelectItem>
-                  <SelectItem value="الدعم التعليمي">الدعم التعليمي</SelectItem>
-                  <SelectItem value="الرعاية الصحية">الرعاية الصحية</SelectItem>
-                  <SelectItem value="الإسكان">الإسكان</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone" className="text-right">
-                رقم الهاتف *
+              <Label htmlFor="monthly_income" className="text-right">
+                الدخل الشهري (دج)
               </Label>
               <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                id="monthly_income"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.monthly_income}
+                onChange={(e) => setFormData({ ...formData, monthly_income: e.target.value })}
                 className="col-span-3"
-                placeholder="0555123456"
-                required
+                disabled={loading}
               />
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="address" className="text-right">
-                العنوان
-              </Label>
-              <Input
-                id="address"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="col-span-3"
-              />
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="notes" className="text-right">
-                ملاحظات
+              <Label htmlFor="needs" className="text-right">
+                الاحتياجات *
               </Label>
               <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                id="needs"
+                value={formData.needs}
+                onChange={(e) => setFormData({ ...formData, needs: e.target.value })}
                 className="col-span-3"
                 rows={3}
+                required
+                disabled={loading}
+                placeholder="اذكر الاحتياجات المطلوبة..."
               />
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
               إلغاء
             </Button>
-            <Button type="submit">إضافة المستفيد</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "جاري الإضافة..." : "إضافة المستفيد"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
